@@ -1,7 +1,9 @@
-import { Negociacao, Negociacoes } from '../models/index';
+import { Negociacao, NegociacaoParcial, Negociacoes } from '../models/index';
 import { MensagemView, NegociacoesView } from '../views/index';
-import { logarTempoDeExecucao } from '../helpers/decorators/index';
-import { domInject } from '../helpers/decorators/index';
+import { domInject, logarTempoDeExecucao, previnirMultiplosCliques } from '../helpers/decorators/index';
+import { NegociacaoService, HandlerFunction } from '../services/NegociacaoService';
+
+import { imprime } from '../helpers/index';
 
 export class NegociacaoController {
 
@@ -17,16 +19,15 @@ export class NegociacaoController {
     private _negociacoes:Negociacoes = new Negociacoes();
     private _negociacoesView = new NegociacoesView("#negociacoesView");
     private _mensagemView = new MensagemView("#mensagemView");
+    private _service = new NegociacaoService;
 
     constructor() {
         this._negociacoesView.update(this._negociacoes);
     }
 
     @logarTempoDeExecucao(false)
-    adiciona(event: Event) {
-
-        event.preventDefault();
-
+    @previnirMultiplosCliques(2000)
+    adiciona() {
         let data = new Date(this._inputData.val().replace(/-/g, ','));
 
         if (!this._ehDiaUtil(data)) {
@@ -41,20 +42,74 @@ export class NegociacaoController {
         );
 
         this._negociacoes.adiciona(negociacao);
-        
-        //this._negociacoes.paraArray().forEach(negociacao =>{
-        //console.log(negociacao.data);
-        //console.log(negociacao.quantidade);
-        //console.log(negociacao.valor);
-        //})
+
+        imprime(negociacao, this._negociacoes);
 
         this._negociacoesView.update(this._negociacoes);
         this._mensagemView.update('Negociação adicionada com sucesso!');
     }
 
+    @previnirMultiplosCliques()
     importaDados() {
-        alert('oi');
-    }
+
+        const isOk: HandlerFunction = (res: Response) => {
+            if (res.ok) {
+                return res;
+            } else {
+                throw new Error(res.statusText);
+            }
+        }
+
+        this._service
+            .obterNegociacoes(isOk)
+            .then((negociacoes: Negociacao[]) => {
+                const negociacoesJaImportadas = this._negociacoes.paraArray();
+
+                negociacoes
+                    .filter(negociacao => !negociacoesJaImportadas.some(jaImportada =>
+                         negociacao.ehIgual(jaImportada)))
+                    .forEach(negociacao => this._negociacoes.adiciona(negociacao));
+
+                this._negociacoesView.update(this._negociacoes);
+            })
+            .catch(err => this._mensagemView.update(err.message));
+    } 
+
+    /* mesmo que o método acima, porém usando o recurso async, codificamos como sincrono
+    porém o transpilador o converte em assíncrono
+    @previnirMultiplosCliques()
+    async importaDados() {
+        
+        try {
+            
+            // usou await antes da chamada de this.service.obterNegociacoes()
+            
+            const negociacoesParaImportar = await this._service
+                .obterNegociacoes(res => {
+                    
+                    if(res.ok) {
+                        return res;
+                    } else {
+                        throw new Error(res.statusText);
+                    }
+                });
+
+            const negociacoesJaImportadas = this._negociacoes.paraArray();
+
+            negociacoesParaImportar
+                .filter((negociacao : Negociacao) => 
+                    !negociacoesJaImportadas.some(jaImportada => 
+                        negociacao.ehIgual(jaImportada)))
+                .forEach((negociacao: Negociacao) => 
+                this._negociacoes.adiciona(negociacao))
+                .;
+                
+            this._negociacoesView.update(this._negociacoes);
+
+        } catch(err) {
+            this._mensagemView.update(err.message);
+        }
+    }*/
 
     private _ehDiaUtil(data: Date) : boolean {
         return data.getDay() != DiaDaSemana.Domingo && data.getDay() != DiaDaSemana.Sabado;
