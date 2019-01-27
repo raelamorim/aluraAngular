@@ -8,4 +8,5 @@
 <ul> 
   <li><code>npm start</code> <strong> - </strong> Executa os parâmetros informados no package json para "start"</li>
   <li><code>npm run server</code> <strong> - </strong> Inicia a execução do servidor</li>
+  <li><code>client caelum$ npm run watch</code> <strong> - </strong> Baixar um pacote</li>
 </ul>
